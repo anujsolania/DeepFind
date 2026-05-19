@@ -10,7 +10,11 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@tavily/core": "^0.7.3",
     "@types/express": "^5.0.6",
-    "express": "^5.2.1"
+    "ai": "^6.0.185",
+    "express": "^5.2.1",
+    "xod": "^1.11.3",
+    "zod": "^4.4.3"
   }
 }
