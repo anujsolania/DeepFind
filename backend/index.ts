@@ -1,9 +1,11 @@
 import express from "express";
 import { tavily } from "@tavily/core";
 import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from "./prompt";
-import { streamText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import Groq from "groq-sdk";
+
 const client = tavily({ apiKey: process.env.TAVILY_API_KEY });
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const app = express();
 
@@ -32,28 +34,44 @@ app.post("/purpexility_ask", async (req, res) => {
     ).replace("{{USER_QUERY}}", userQuery);
 
     //hit the LLM api and stream the response
-    const result = streamText({
-      model: groq("llama-3.3-70b-versatile"),
-      prompt: PROMPT,
-      system: SYSTEM_PROMPT,
+    const stream = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: SYSTEM_PROMPT,
+        },
+        {
+          role: "user",
+          content: PROMPT,
+        },
+      ],
+      model: "openai/gpt-oss-20b",
+      stream: true,
     });
 
     //required headers
-    res.header("Cache-Control", "no-cache");
     res.header("Content-Type", "text/event-stream");
+    res.header("Cache-Control", "no-cache");
     res.header("Connection", "keep-alive");
+    res.flushHeaders();
 
-    for await (const textPart of result.textStream) {
+    for await (const chunk of stream) {
       // SSE requires each message to start with "data: " and end with two newlines
       // We stringify the chunk to handle any inner newlines safely
-      res.write(`data: ${JSON.stringify(textPart)}\n\n`);
+      // res.write(`data: ${JSON.stringify(textPart)}\n\n`);
+      // process.stdout.write(chunk.choices[0]?.delta?.content || "");
+      res.write(
+        `data: ${JSON.stringify(chunk.choices[0]?.delta?.content || "")}\n\n`
+      );
     }
 
     //stream back the responses
     res.write(`data: ${JSON.stringify("<SOURCES>")}\n\n`);
 
     res.write(
-      `data: ${JSON.stringify(webSearchResults.map((result) => ({ url: result.url })))}\n\n`
+      `data: ${JSON.stringify(
+        webSearchResults.map((result) => ({ url: result.url }))
+      )}\n\n`
     );
 
     res.write(`data: ${JSON.stringify("</SOURCES>")}\n\n`);
@@ -63,9 +81,16 @@ app.post("/purpexility_ask", async (req, res) => {
   } catch (error: any) {
     console.error("API Request Failed:", error);
     if (!res.headersSent) {
-      res.status(503).json({ error: "Groq API is currently overloaded. Please try again in a few minutes." });
+      res.status(503).json({
+        error:
+          "Groq API is currently overloaded. Please try again in a few minutes.",
+      });
     } else {
-      res.write(`data: ${JSON.stringify("\n\n[ERROR: Groq API is overloaded. Please try again.]")}\n\n`);
+      res.write(
+        `data: ${JSON.stringify(
+          "\n\n[ERROR: Groq API is overloaded. Please try again.]"
+        )}\n\n`
+      );
       res.end();
     }
   }
