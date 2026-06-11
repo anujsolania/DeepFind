@@ -15,7 +15,37 @@ datasource db {
 }
 
 model User { 
-	id    String @id @default(cuid())
-	email String  @unique
-	name  String?
+	id             String @id @default(cuid())
+	email          String  @unique
+	name           String
+  provider       AuthProvider
+  conversations  Conversation[]
 } 
+
+model Coversation {
+  id       String @id @default(cuid())
+  title    String?
+  slug     String
+  messages Message[]
+  userId   String
+  user     User @relation(fields: [userId], references: [id])
+}
+
+model Message {
+  id              Int @id @default(autoincrement())
+  content         String
+  role            MessageRole
+  conversationId  String
+  conversation    Conversation @relation[fields: [conversationId], references: [id]]
+  createdAt       DateTime  @default(now())
+}
+
+enum MessageRole {
+  User
+  Assistant
+}
+
+enum AuthProvider {
+  Github
+  Google
+}
