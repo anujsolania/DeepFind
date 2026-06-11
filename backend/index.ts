@@ -84,6 +84,8 @@ app.post("/purpexility_ask", async (req, res) => {
     for await (const chunk of stream) {
       const token = chunk.choices[0]?.delta?.content || "";
 
+      if (!token) continue;
+
       fullAnswer += token;
 
       res.write(
@@ -93,24 +95,6 @@ app.post("/purpexility_ask", async (req, res) => {
         })}\n\n`
       );
     }
-
-    // let fullAnswer = "";
-    // // Stream raw chunks in real-time
-    // for await (const chunk of stream) {
-    //   const content = chunk.choices[0]?.delta?.content || "";
-    //   fullResponse += content;
-    //   // Send raw content immediately
-    //   res.write(`data: ${JSON.stringify({ type: "RAW_CHUNK", content })}\n\n`);
-    // }
-
-    // // Parse the complete JSON response
-    // let parsedResponse = { answer: "", follow_ups: [] };
-    // try {
-    //   parsedResponse = JSON.parse(fullResponse);
-    // } catch (e) {
-    //   console.error("Failed to parse LLM response as JSON:", e);
-    //   parsedResponse = { answer: fullResponse, follow_ups: [] };
-    // }
 
     const followUpPrompt = `
     User Question:
