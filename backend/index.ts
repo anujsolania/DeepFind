@@ -20,6 +20,14 @@ app.post("/purpexility_ask", async (req, res) => {
     }
     const userQuery = req.body.query;
 
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    res.flushHeaders();
+
     //do web search
     const webSearchResponse = await client.search(userQuery, {
       searchDepth: "advanced",
@@ -27,11 +35,33 @@ app.post("/purpexility_ask", async (req, res) => {
 
     const webSearchResults = webSearchResponse.results;
 
+    const sources = webSearchResults.map((item) => ({
+      title: item.title,
+      url: item.url,
+    }));
+
+    res.write(
+      `data:${JSON.stringify({
+        type: "SOURCES",
+        content: sources,
+      })}\n\n`
+    );
+
     //context engineering (web search + some context)
-    const PROMPT = PROMPT_TEMPLATE.replace(
-      "{{WEB_SEARCH_RESULTS}}",
-      JSON.stringify(webSearchResults)
-    ).replace("{{USER_QUERY}}", userQuery);
+    // const PROMPT = PROMPT_TEMPLATE.replace(
+    //   "{{WEB_SEARCH_RESULTS}}",
+    //   JSON.stringify(webSearchResults)
+    // ).replace("{{USER_QUERY}}", userQuery);
+
+    const prompt = `
+    Web Search Results
+
+    ${JSON.stringify(webSearchResults)}
+
+    Question
+
+    ${userQuery}
+    `;
 
     //hit the LLM api and stream the response
     const stream = await groq.chat.completions.create({
@@ -42,45 +72,88 @@ app.post("/purpexility_ask", async (req, res) => {
         },
         {
           role: "user",
-          content: PROMPT,
+          content: prompt,
         },
       ],
       model: "openai/gpt-oss-20b",
       stream: true,
     });
 
-    //required headers
-    res.header("Content-Type", "text/event-stream");
-    res.header("Cache-Control", "no-cache");
-    res.header("Connection", "keep-alive");
-    res.flushHeaders();
+    let fullAnswer = "";
 
-    let fullResponse = "";
-    // Stream raw chunks in real-time
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || "";
-      fullResponse += content;
-      // Send raw content immediately
-      res.write(`data: ${JSON.stringify({ type: "RAW_CHUNK", content })}\n\n`);
+      const token = chunk.choices[0]?.delta?.content || "";
+
+      fullAnswer += token;
+
+      res.write(
+        `data:${JSON.stringify({
+          type: "TEXT_DELTA",
+          content: token,
+        })}\n\n`
+      );
     }
 
-    // Parse the complete JSON response
-    let parsedResponse = { answer: "", follow_ups: [] };
-    try {
-      parsedResponse = JSON.parse(fullResponse);
-    } catch (e) {
-      console.error("Failed to parse LLM response as JSON:", e);
-      parsedResponse = { answer: fullResponse, follow_ups: [] };
+    // let fullAnswer = "";
+    // // Stream raw chunks in real-time
+    // for await (const chunk of stream) {
+    //   const content = chunk.choices[0]?.delta?.content || "";
+    //   fullResponse += content;
+    //   // Send raw content immediately
+    //   res.write(`data: ${JSON.stringify({ type: "RAW_CHUNK", content })}\n\n`);
+    // }
+
+    // // Parse the complete JSON response
+    // let parsedResponse = { answer: "", follow_ups: [] };
+    // try {
+    //   parsedResponse = JSON.parse(fullResponse);
+    // } catch (e) {
+    //   console.error("Failed to parse LLM response as JSON:", e);
+    //   parsedResponse = { answer: fullResponse, follow_ups: [] };
+    // }
+
+    const followUpPrompt = `
+    User Question:
+    ${userQuery}
+    Assistant Answer:
+    ${fullAnswer}
+    Generate exactly 3 follow up questions.
+    Return JSON only.
+    {
+      "follow_ups":[
+        "...",
+        "...",
+        "..."
+      ]
     }
+`;
+
+    //second groq llm api call
+    const followUps = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: followUpPrompt,
+        },
+      ],
+      model: "openai/gpt-oss-20b",
+    });
+
+    const followUpsText = followUps.choices[0]?.message.content;
+
+    const parsed = JSON.parse(followUpsText ?? "");
 
     // Send follow-ups
-    res.write(`data: ${JSON.stringify({ type: "FOLLOW_UPS", content: parsedResponse.follow_ups })}\n\n`);
-
-    // Send sources
     res.write(
-      `data: ${JSON.stringify({
-        type: "SOURCES",
-        content: webSearchResults.map((result) => ({ url: result.url })),
+      `data:${JSON.stringify({
+        type: "FOLLOW_UPS",
+        content: parsed.follow_ups,
+      })}\n\n`
+    );
+
+    res.write(
+      `data:${JSON.stringify({
+        type: "DONE",
       })}\n\n`
     );
 
