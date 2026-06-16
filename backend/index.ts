@@ -3,6 +3,7 @@ import { tavily } from "@tavily/core";
 import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from "./prompt";
 import Groq from "groq-sdk";
 import { prisma } from "./db";
+import middleware from "./middleware";
 
 const client = tavily({ apiKey: process.env.TAVILY_API_KEY });
 
@@ -11,6 +12,16 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const app = express();
 
 app.use(express.json());
+
+app.get("/conversations",middleware, async (req, res) => {
+  res.json({
+    userId: (req as any).userId
+  })
+})
+
+app.get("/messages", async(require, res) => {
+  
+})
 
 
 app.post("/purpexility_ask", async (req, res) => {
