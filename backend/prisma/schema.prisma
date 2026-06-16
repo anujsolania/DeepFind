@@ -46,6 +46,6 @@ enum MessageRole {
 }
 
 enum AuthProvider {
-  Github
-  Google
+  github
+  google
 }

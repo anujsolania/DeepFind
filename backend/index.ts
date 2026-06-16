@@ -1,8 +1,7 @@
 import express from "express";
 import { tavily } from "@tavily/core";
-import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from "./prompt";
+import { SYSTEM_PROMPT } from "./prompt";
 import Groq from "groq-sdk";
-import { prisma } from "./db";
 import middleware from "./middleware";
 import cors from "cors"
 
@@ -21,7 +20,8 @@ app.get("/conversations",middleware, async (req, res) => {
   })
 })
 
-app.get("/messages", async(require, res) => {
+app.get("/messages", async(req, res) => {
+
   
 })
 
@@ -61,12 +61,6 @@ app.post("/purpexility_ask", async (req, res) => {
         content: sources,
       })}\n\n`
     );
-
-    //context engineering (web search + some context)
-    // const PROMPT = PROMPT_TEMPLATE.replace(
-    //   "{{WEB_SEARCH_RESULTS}}",
-    //   JSON.stringify(webSearchResults)
-    // ).replace("{{USER_QUERY}}", userQuery);
 
     const prompt = `
     Web Search Results
