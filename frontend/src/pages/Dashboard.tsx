@@ -1,24 +1,37 @@
 
 import { supabase } from "@/lib/supabase"
-import { useEffect } from "react"
+import type { User } from "@supabase/supabase-js";
+import { useEffect, useState } from "react"
+import { useNavigate } from "react-router";
 
 
 
 
 export default function Dashboard() {
+    const navigate = useNavigate();
+    const [user, setUser] = useState< User | undefined>();
 
     useEffect(() => {
-        async function fetchSession() {
-            const { data, error } = await supabase.auth.getClaims()
+        async function fetchUser() {
+            const { data, error } = await supabase.auth.getUser()
             if (error) {
-                console.error("Error fetching session:", error)
+                console.error("Error fetching user data:", error)
                 return
             }
-            console.log("Session:", data)
+            setUser(data.user);
+            console.log("Get user: ", data)
         }
-        fetchSession()
+        fetchUser()
     }, [])
     return (
-        <div>Dashboard</div>
+        <div>
+            {!user ? (
+                <button onClick={() => {
+                    navigate("/auth")
+                }}> Go to SIGIN</button>
+            ) : (
+                <div>user email : {user?.email}</div>
+            )}
+        </div>
     )
 }
