@@ -4,6 +4,7 @@ import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from "./prompt";
 import Groq from "groq-sdk";
 import { prisma } from "./db";
 import middleware from "./middleware";
+import cors from "cors"
 
 const client = tavily({ apiKey: process.env.TAVILY_API_KEY });
 
@@ -12,6 +13,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const app = express();
 
 app.use(express.json());
+app.use(cors());
 
 app.get("/conversations",middleware, async (req, res) => {
   res.json({
