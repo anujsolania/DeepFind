@@ -4,6 +4,7 @@ import { SYSTEM_PROMPT, getPrompt, getFollowUpPrompt } from "./prompt";
 import Groq from "groq-sdk";
 import middleware from "./middleware";
 import cors from "cors"
+import { prisma } from "./db";
 
 const client = tavily({ apiKey: process.env.TAVILY_API_KEY });
 
@@ -15,14 +16,46 @@ app.use(express.json());
 app.use(cors());
 
 app.get("/conversations",middleware, async (req, res) => {
-  res.json({
-    userId: (req as any).userId
-  })
+  try {
+    const conversations = await prisma.conversation.findMany({
+      where: {
+        userId: (req as any).userId
+      }
+    })
+    res.json(conversations)
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong /coversations" });
+  }
 })
 
-app.get("/messages", async(req, res) => {
+app.get("/conversation/:id", async(req,res) => {
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: {
+        id: req.params.id
+      }
+    })
+    res.json(conversation)
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong /coversations/:id" });
+  }
+})
 
-  
+app.get("/messages/:id", async(req, res) => {
+  try {
+    const messages = await prisma.message.findMany({
+      where: {
+        conversationId: req.params.id
+      }
+    })
+    res.json(messages)
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong /messages/:id" });
+  }
+
 })
 
 
