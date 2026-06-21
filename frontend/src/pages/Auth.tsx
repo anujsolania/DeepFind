@@ -127,7 +127,7 @@ export default function Auth() {
                                 type="button"
                                 variant="outline"
                                 onClick={() => handleOAuthLogin("google")}
-                                className="w-full h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                                className="w-full h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
                                 disabled={loading !== null}
                             >
                                 {loading === "google" ? (
@@ -160,7 +160,7 @@ export default function Auth() {
                                 type="button"
                                 variant="outline"
                                 onClick={() => handleOAuthLogin("github")}
-                                className="w-full h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                                className="w-full h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
                                 disabled={loading !== null}
                             >
                                 {loading === "github" ? (
