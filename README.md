@@ -1,6 +1,6 @@
 # DeepFind — Search Synthesis Engine
 
-DeepFind is a production-ready, AI-powered Search Synthesis Engine inspired by Perplexity. The application leverages real-time web crawling, Large Language Models (LLMs), and server-sent event (SSE) streaming to deliver synthesized, cited answers to user queries.
+DeepFind is a production-ready, AI-powered Search Synthesis Engine. The application leverages real-time web crawling, Large Language Models (LLMs), and server-sent event (SSE) streaming to deliver synthesized, cited answers to user queries.
 
 Built with a modern web architecture, DeepFind implements secure social OAuth login, custom database state synchronization, and multi-turn conversational capabilities that maintain chat context across follow-up searches.
 
