@@ -84,9 +84,9 @@ export default function Auth() {
             {/* Subtle background grid pattern */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,#090B11_80%),linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:100%_100%,32px_32px,32px_32px] pointer-events-none" />
 
-            <div className="relative z-10 w-full max-w-md">
+            <div className="relative z-10 w-full max-w-[340px] sm:max-w-md">
                 {/* Brand Logo & Slogan Header */}
-                <div className="flex flex-col items-center mb-8 animate-fade-in duration-700 group cursor-default">
+                <div className="flex flex-col items-center mb-6 sm:mb-8 animate-fade-in duration-700 group cursor-default">
                     <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 p-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] mb-4 group-hover:shadow-[0_0_30px_rgba(16,185,129,0.55)] group-hover:scale-105 transition-all duration-500">
                         <Sparkles className="w-full h-full text-zinc-950 group-hover:rotate-[360deg] transition-transform duration-[1200ms] ease-out" />
                     </div>
@@ -105,17 +105,17 @@ export default function Auth() {
                 </div>
 
                 {/* Glassmorphic Auth Card container */}
-                <Card className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden transition-all duration-300 hover:border-zinc-700/50">
-                    <CardHeader className="space-y-1 pb-4 text-center">
-                        <CardTitle className="text-xl font-semibold text-zinc-100">
+                <Card className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden transition-all duration-300 hover:border-zinc-700/50 py-4 sm:py-6">
+                    <CardHeader className="space-y-1 pb-4 text-center px-4 sm:px-6">
+                        <CardTitle className="text-lg sm:text-xl font-semibold text-zinc-100">
                             Sign In / Sign Up
                         </CardTitle>
-                        <CardDescription className="text-zinc-400 text-sm">
+                        <CardDescription className="text-zinc-400 text-xs sm:text-sm">
                             Connect with one of our supported social providers to continue
                         </CardDescription>
                     </CardHeader>
 
-                    <CardContent className="space-y-4 pt-2">
+                    <CardContent className="space-y-4 pt-2 px-4 sm:px-6">
                         {/* Error Alert Display */}
                         {error && (
                             <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm transition-all duration-300 animate-slide-in">
@@ -127,13 +127,13 @@ export default function Auth() {
                             </div>
                         )}
 
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3 sm:gap-4">
                             {/* Google OAuth Button */}
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => handleOAuthLogin("google")}
-                                className="w-full h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                                className="w-full h-11 sm:h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-sm sm:text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
                                 disabled={loading !== null}
                             >
                                 {loading === "google" ? (
@@ -166,7 +166,7 @@ export default function Auth() {
                                 type="button"
                                 variant="outline"
                                 onClick={() => handleOAuthLogin("github")}
-                                className="w-full h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                                className="w-full h-11 sm:h-12 cursor-pointer border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100 flex items-center justify-center gap-3 rounded-xl transition-all duration-200 text-sm sm:text-base font-medium shadow-md shadow-black/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
                                 disabled={loading !== null}
                             >
                                 {loading === "github" ? (
