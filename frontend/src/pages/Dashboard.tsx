@@ -1,13 +1,24 @@
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router";
 
 interface Conversation {
   id: string;
   title: string | null;
   followUps: string[];
+}
+
+// STEP 4 TYPE DEFINITIONS
+interface Source {
+  title: string;
+  url: string;
+}
+
+interface Message {
+  role: "User" | "Assistant";
+  content: string;
 }
 
 export default function Dashboard() {
@@ -21,6 +32,15 @@ export default function Dashboard() {
 
   // STEP 3 STATE: Store current search input text
   const [query, setQuery] = useState("");
+
+  // STEP 4 STATE: Active chat message list, search sources, streaming state, and follow-ups
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [followUps, setFollowUps] = useState<string[]>([]);
+
+  // Ref to automatically scroll to bottom when new messages arrive
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check if user is authenticated. If not, redirect to login page.
   useEffect(() => {
@@ -43,6 +63,11 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // STEP 4 EFFECT: Scroll to bottom when messages or streaming state changes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isStreaming]);
+
   // STEP 2 API: Fetch recent conversations from the backend
   async function fetchConversations() {
     try {
@@ -63,20 +88,120 @@ export default function Dashboard() {
   // STEP 2: Clear active chat state for a "New Chat"
   function handleNewChat() {
     setActiveConversationId(null);
+    setMessages([]);
+    setSources([]);
+    setFollowUps([]);
   }
 
-  // STEP 3: Handle search query submission
-  function handleSearchSubmit(e: React.FormEvent) {
+  // STEP 4: Submit search query and stream response
+  async function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim() || isStreaming) return;
 
-    console.log("Submitting query:", query);
-    
-    // Temporarily set a dummy conversation ID to transition layout to active chat
-    setActiveConversationId("temp-chat-id");
-    
-    // Clear query
+    const submittedQuery = query;
     setQuery("");
+
+    // 1. Reset states for a new conversation stream
+    setMessages([{ role: "User", content: submittedQuery }]);
+    setSources([]);
+    setFollowUps([]);
+    setIsStreaming(true);
+    setActiveConversationId("new-temp"); // Temporary ID to swap the UI layout
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsStreaming(false);
+        return;
+      }
+
+      // 2. Fetch connection with POST request
+      const response = await fetch("http://localhost:3000/purpexility_ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: session.access_token,
+        },
+        body: JSON.stringify({ query: submittedQuery }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to search. Server returned status: " + response.status);
+      }
+
+      // 3. Setup ReadableStream reader
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response stream body available");
+      }
+
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      // 4. Stream loop
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE chunks are lines separated by double newlines (\n\n)
+        const lines = buffer.split("\n\n");
+        // Save the last incomplete line back to the buffer
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (cleanLine.startsWith("data:")) {
+            const jsonStr = cleanLine.slice(5).trim();
+            if (!jsonStr) continue;
+
+            try {
+              const parsed = JSON.parse(jsonStr);
+
+              if (parsed.type === "SOURCES") {
+                setSources(parsed.content);
+              } else if (parsed.type === "TEXT_DELTA") {
+                const token = parsed.content;
+                setMessages((prev) => {
+                  const lastMessage = prev[prev.length - 1];
+                  if (lastMessage && lastMessage.role === "Assistant") {
+                    return [
+                      ...prev.slice(0, -1),
+                      { ...lastMessage, content: lastMessage.content + token },
+                    ];
+                  } else {
+                    return [...prev, { role: "Assistant", content: token }];
+                  }
+                });
+              } else if (parsed.type === "FOLLOW_UPS") {
+                setFollowUps(parsed.content);
+              } else if (parsed.type === "CONVERSATION_ID") {
+                setActiveConversationId(parsed.content);
+              } else if (parsed.type === "DONE") {
+                setIsStreaming(false);
+                fetchConversations(); // Refresh the list of conversations in the sidebar
+              } else if (parsed.type === "ERROR") {
+                setIsStreaming(false);
+                setMessages((prev) => [
+                  ...prev,
+                  { role: "Assistant", content: "Error: " + parsed.content },
+                ]);
+              }
+            } catch (jsonErr) {
+              console.error("Error parsing stream chunk:", jsonErr);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("Streaming error:", err);
+      setIsStreaming(false);
+      setMessages((prev) => [
+        ...prev,
+        { role: "Assistant", content: "Error: " + (err.message || "Could not connect to search server.") },
+      ]);
+    }
   }
 
   // Handle logging out
@@ -207,10 +332,72 @@ export default function Dashboard() {
         ) : (
           /* ACTIVE CONVERSATION STATE: Chat history scroll area + input at bottom */
           <div className="flex-1 flex flex-col justify-between overflow-hidden">
-            {/* Scrollable message feed (placeholder for now) */}
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
-              <div className="text-zinc-500 text-sm italic">
-                Active chat messages will appear here... (Step 4)
+            {/* Scrollable message feed */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col gap-6">
+              <div className="max-w-3xl mx-auto w-full flex flex-col gap-6">
+                {messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`flex flex-col gap-2 ${
+                      message.role === "User" ? "items-end" : "items-start"
+                    }`}
+                  >
+                    {/* Speaker Header */}
+                    <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">
+                      {message.role === "User" ? "You" : "DeepFind"}
+                    </span>
+
+                    {/* Message Bubble */}
+                    <div
+                      className={`p-4 rounded-2xl text-sm leading-relaxed max-w-[90%] whitespace-pre-wrap ${
+                        message.role === "User"
+                          ? "bg-zinc-800 text-zinc-100 font-medium"
+                          : "bg-transparent text-zinc-300"
+                      }`}
+                    >
+                      {message.role === "Assistant" && index === 1 && sources.length > 0 && (
+                        /* Render Search Sources at the top of the AI's first answer block */
+                        <div className="mb-6">
+                          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2.5">
+                            Sources Found
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                            {sources.map((source, sIdx) => (
+                              <a
+                                key={sIdx}
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2.5 bg-zinc-900/80 border border-zinc-800/85 hover:border-zinc-700/80 rounded-xl text-xs text-zinc-300 block hover:text-emerald-400 transition truncate"
+                              >
+                                <div className="font-semibold truncate">{source.title}</div>
+                                <div className="text-[10px] text-zinc-500 truncate">{source.url}</div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Message Content Text */}
+                      {message.content}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Streaming/Thinking Loader */}
+                {isStreaming && messages[messages.length - 1]?.role === "User" && (
+                  <div className="flex flex-col gap-2 items-start">
+                    <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">
+                      DeepFind
+                    </span>
+                    <div className="p-4 rounded-2xl text-sm text-zinc-400 italic bg-transparent">
+                      Searching web and synthesizing...
+                    </div>
+                  </div>
+                )}
+
+                {/* Invisible element to scroll into view */}
+                <div ref={messagesEndRef} />
               </div>
             </div>
 
@@ -224,12 +411,14 @@ export default function Dashboard() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Ask a follow-up..."
-                  className="flex-1 bg-transparent border-0 outline-none text-zinc-100 placeholder-zinc-500 px-4 py-3 text-base focus:ring-0"
+                  placeholder={isStreaming ? "Synthesizing answer..." : "Ask a follow-up..."}
+                  disabled={isStreaming}
+                  className="flex-1 bg-transparent border-0 outline-none text-zinc-100 placeholder-zinc-500 px-4 py-3 text-base focus:ring-0 disabled:opacity-50"
                 />
                 <button
                   type="submit"
-                  className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-sm transition duration-200 cursor-pointer shadow-md shadow-emerald-500/20"
+                  disabled={isStreaming}
+                  className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-bold rounded-xl text-sm transition duration-200 cursor-pointer shadow-md shadow-emerald-500/20"
                 >
                   Ask
                 </button>
