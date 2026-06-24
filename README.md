@@ -6,6 +6,14 @@ Built with a modern web architecture, DeepFind implements secure social OAuth lo
 
 ---
 
+## User Interface Showcase
+
+| Authentication Screen | Search Dashboard | Active Chat & Synthesis |
+| :---: | :---: | :---: |
+| ![Authentication Screen](./assets/auth.png) | ![Search Dashboard](./assets/dashboard.png) | ![Active Chat](./assets/chat.png) |
+
+---
+
 ## Technical Architecture Overview
 
 DeepFind follows a decoupled client-server architecture built on top of the ultra-fast **Bun** runtime. 
