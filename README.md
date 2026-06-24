@@ -13,13 +13,13 @@ DeepFind follows a decoupled client-server architecture built on top of the ultr
 ### Core Architecture Diagram
 ```mermaid
 graph TD
-    subgraph Client [React Frontend (Bun)]
+    subgraph Client ["React Frontend (Bun)"]
         UI[Glassmorphic Dashboard UI]
         SSE[SSE Stream Reader]
         SupaClient[Supabase Client Auth]
     end
 
-    subgraph ServiceLayer [Express Backend (Bun)]
+    subgraph ServiceLayer ["Express Backend (Bun)"]
         API[Express Router]
         AuthMW[Authentication Middleware]
         TavClient[Tavily Search SDK]
