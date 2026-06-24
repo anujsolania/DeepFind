@@ -132,20 +132,29 @@ export default function Dashboard() {
     setFollowUps([]);
   }
 
-  // STEP 4: Submit search query and stream response
-  async function handleSearchSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim() || isStreaming) return;
+  // STEP 6: Execute search query (handles both new conversations and follow-up streaming)
+  async function executeSearch(submittedQuery: string) {
+    if (isStreaming) return;
 
-    const submittedQuery = query;
-    setQuery("");
+    // Check if we are continuation of an existing conversation
+    const isFollowUp =
+      activeConversationId !== null &&
+      activeConversationId !== "new-temp" &&
+      activeConversationId !== "temp-chat-id";
 
-    // 1. Reset states for a new conversation stream
-    setMessages([{ role: "User", content: submittedQuery }]);
+    // 1. Setup local messages array
+    if (isFollowUp) {
+      // Append user follow-up message to list
+      setMessages((prev) => [...prev, { role: "User", content: submittedQuery }]);
+    } else {
+      // Clear previous list and set the initial user query
+      setMessages([{ role: "User", content: submittedQuery }]);
+      setActiveConversationId("new-temp"); // Swap to active chat layout
+    }
+
     setSources([]);
     setFollowUps([]);
     setIsStreaming(true);
-    setActiveConversationId("new-temp"); // Temporary ID to swap the UI layout
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -154,39 +163,44 @@ export default function Dashboard() {
         return;
       }
 
-      // 2. Fetch connection with POST request
-      const response = await fetch("http://localhost:3000/purpexility_ask", {
+      // 2. Select endpoint and request body based on whether it is a follow-up
+      const endpoint = isFollowUp
+        ? "http://localhost:3000/purpexility_ask/follow_ups"
+        : "http://localhost:3000/purpexility_ask";
+
+      const requestBody = isFollowUp
+        ? { conversationId: activeConversationId, query: submittedQuery }
+        : { query: submittedQuery };
+
+      // 3. Connect to stream
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: session.access_token,
         },
-        body: JSON.stringify({ query: submittedQuery }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to search. Server returned status: " + response.status);
+        throw new Error("Search server returned an error: " + response.status);
       }
 
-      // 3. Setup ReadableStream reader
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error("No response stream body available");
+        throw new Error("No response stream available");
       }
 
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
 
-      // 4. Stream loop
+      // 4. Stream decoding loop
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-
-        // SSE chunks are lines separated by double newlines (\n\n)
         const lines = buffer.split("\n\n");
-        // Save the last incomplete line back to the buffer
         buffer = lines.pop() || "";
 
         for (const line of lines) {
@@ -216,10 +230,12 @@ export default function Dashboard() {
               } else if (parsed.type === "FOLLOW_UPS") {
                 setFollowUps(parsed.content);
               } else if (parsed.type === "CONVERSATION_ID") {
-                setActiveConversationId(parsed.content);
+                if (!isFollowUp) {
+                  setActiveConversationId(parsed.content);
+                }
               } else if (parsed.type === "DONE") {
                 setIsStreaming(false);
-                fetchConversations(); // Refresh the list of conversations in the sidebar
+                fetchConversations(); // Reload sidebar chats list
               } else if (parsed.type === "ERROR") {
                 setIsStreaming(false);
                 setMessages((prev) => [
@@ -227,20 +243,30 @@ export default function Dashboard() {
                   { role: "Assistant", content: "Error: " + parsed.content },
                 ]);
               }
-            } catch (jsonErr) {
-              console.error("Error parsing stream chunk:", jsonErr);
+            } catch (err) {
+              console.error("JSON parse error in stream chunk:", err);
             }
           }
         }
       }
     } catch (err: any) {
-      console.error("Streaming error:", err);
+      console.error("Search stream failed:", err);
       setIsStreaming(false);
       setMessages((prev) => [
         ...prev,
-        { role: "Assistant", content: "Error: " + (err.message || "Could not connect to search server.") },
+        { role: "Assistant", content: "Error: " + (err.message || "Unable to retrieve response from server.") },
       ]);
     }
+  }
+
+  // STEP 3: Handle search query submission
+  function handleSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!query.trim() || isStreaming) return;
+
+    const submittedQuery = query;
+    setQuery("");
+    executeSearch(submittedQuery);
   }
 
   // Handle logging out
@@ -431,6 +457,26 @@ export default function Dashboard() {
                     </span>
                     <div className="p-4 rounded-2xl text-sm text-zinc-400 italic bg-transparent">
                       Searching web and synthesizing...
+                    </div>
+                  </div>
+                )}
+
+                {/* Suggested follow-up badges */}
+                {!isStreaming && followUps.length > 0 && (
+                  <div className="flex flex-col gap-2.5 mt-6 border-t border-zinc-850 pt-6">
+                    <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">
+                      Suggested Follow-ups
+                    </span>
+                    <div className="flex flex-col gap-1.5 max-w-2xl">
+                      {followUps.map((suggestion, sIdx) => (
+                        <button
+                          key={sIdx}
+                          onClick={() => executeSearch(suggestion)}
+                          className="text-left px-4 py-3 bg-[#161820]/60 border border-zinc-800/80 hover:border-zinc-700 hover:text-emerald-400 text-sm text-zinc-300 rounded-xl transition duration-200 cursor-pointer"
+                        >
+                          {suggestion} →
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
