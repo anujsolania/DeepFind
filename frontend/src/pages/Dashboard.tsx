@@ -377,9 +377,21 @@ export default function Dashboard() {
           className="absolute top-4 left-4 p-2 bg-[#0d0e12]/80 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 rounded-lg transition duration-200 z-50 cursor-pointer flex items-center justify-center shadow-lg backdrop-blur-sm"
           title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
+          {isSidebarOpen ? (
+            /* Panel Left Close Icon */
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <rect width="18" height="18" x="3" y="3" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v18" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m16 15-3-3 3-3" />
+            </svg>
+          ) : (
+            /* Panel Left Open Icon */
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <rect width="18" height="18" x="3" y="3" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v18" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="m14 9 3 3-3 3" />
+            </svg>
+          )}
         </button>
         {activeConversationId === null ? (
           /* WELCOME STATE: Centered search bar */
