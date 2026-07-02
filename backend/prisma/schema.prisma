@@ -29,6 +29,7 @@ model Conversation {
   userId    String
   user      User      @relation(fields: [userId], references: [id])
   followUps String[]  @default([])
+  updatedAt DateTime  @default(now()) @updatedAt
 }
 
 model Message {

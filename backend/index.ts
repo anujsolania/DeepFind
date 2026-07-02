@@ -21,6 +21,9 @@ app.get("/conversations",middleware, async (req, res) => {
     const conversations = await prisma.conversation.findMany({
       where: {
         userId: (req as any).userId
+      },
+      orderBy: {
+        updatedAt: "desc"
       }
     })
     res.json(conversations)
