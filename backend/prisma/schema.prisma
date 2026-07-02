@@ -39,6 +39,7 @@ model Message {
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   createdAt      DateTime     @default(now())
+  sources        Json?        @default("[]")
 }
 
 enum MessageRole {

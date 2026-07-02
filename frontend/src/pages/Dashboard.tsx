@@ -22,6 +22,7 @@ interface Source {
 interface Message {
   role: "User" | "Assistant";
   content: string;
+  sources?: Source[];
 }
 
 export default function Dashboard() {
@@ -38,7 +39,6 @@ export default function Dashboard() {
 
   // STEP 4 STATE: Active chat message list, search sources, streaming state, and follow-ups
   const [messages, setMessages] = useState<Message[]>([]);
-  const [sources, setSources] = useState<Source[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [followUps, setFollowUps] = useState<string[]>([]);
 
@@ -126,11 +126,11 @@ export default function Dashboard() {
         const formattedMessages: Message[] = conversationData.messages.map((msg: any) => ({
           role: msg.role,
           content: msg.content,
+          sources: msg.sources || [],
         }));
         
         setMessages(formattedMessages);
         setFollowUps(conversationData.followUps || []);
-        setSources([]); // Clear sources as database doesn't persist sources
       }
     } catch (error) {
       console.error("Error fetching conversation details:", error);
@@ -141,7 +141,6 @@ export default function Dashboard() {
   function handleNewChat() {
     setActiveConversationId(null);
     setMessages([]);
-    setSources([]);
     setFollowUps([]);
     if (window.innerWidth < 768) {
       setIsSidebarOpen(false);
@@ -168,7 +167,6 @@ export default function Dashboard() {
       setActiveConversationId("new-temp"); // Swap to active chat layout
     }
 
-    setSources([]);
     setFollowUps([]);
     setIsStreaming(true);
 
@@ -229,7 +227,10 @@ export default function Dashboard() {
               const parsed = JSON.parse(jsonStr);
 
               if (parsed.type === "SOURCES") {
-                setSources(parsed.content);
+                setMessages((prev) => [
+                  ...prev,
+                  { role: "Assistant", content: "", sources: parsed.content },
+                ]);
               } else if (parsed.type === "TEXT_DELTA") {
                 const token = parsed.content;
                 setMessages((prev) => {
@@ -240,7 +241,10 @@ export default function Dashboard() {
                       { ...lastMessage, content: lastMessage.content + token },
                     ];
                   } else {
-                    return [...prev, { role: "Assistant", content: token }];
+                    return [
+                      ...prev,
+                      { role: "Assistant", content: token, sources: [] },
+                    ];
                   }
                 });
               } else if (parsed.type === "FOLLOW_UPS") {
@@ -551,14 +555,14 @@ export default function Dashboard() {
                           : "bg-transparent text-zinc-300"
                       }`}
                     >
-                      {message.role === "Assistant" && index === 1 && sources.length > 0 && (
-                        /* Render Search Sources at the top of the AI's first answer block */
+                      {message.role === "Assistant" && message.sources && message.sources.length > 0 && (
+                        /* Render Search Sources at the top of the AI's specific answer block */
                         <div className="mb-6">
                           <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2.5">
                             Sources Found
                           </span>
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                            {sources.map((source, sIdx) => (
+                            {message.sources.map((source, sIdx) => (
                               <a
                                 key={sIdx}
                                 href={source.url}
@@ -577,6 +581,10 @@ export default function Dashboard() {
                       {/* Message Content Text */}
                       {message.role === "User" ? (
                         message.content
+                      ) : message.content === "" ? (
+                        <div className="p-2 text-sm text-zinc-400 italic bg-transparent animate-pulse">
+                          Synthesizing answer...
+                        </div>
                       ) : (
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
@@ -623,12 +631,12 @@ export default function Dashboard() {
                 {/* Streaming/Thinking Loader */}
                 {isStreaming && messages[messages.length - 1]?.role === "User" && (
                   <div className="flex flex-col gap-2 items-start">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-400">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
+                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-400 animate-pulse">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       DeepFind
                     </span>
                     <div className="p-4 rounded-2xl text-sm text-zinc-400 italic bg-transparent">
-                      Searching web and synthesizing...
+                      Searching web...
                     </div>
                   </div>
                 )}

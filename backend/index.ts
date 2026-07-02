@@ -178,6 +178,7 @@ app.post("/purpexility_ask",middleware, async (req, res) => {
             {
               content: fullAnswer,
               role: "Assistant",
+              sources: sources,
             }
           ]
         }
@@ -349,6 +350,7 @@ app.post("/purpexility_ask/follow_ups", middleware, async (req, res) => {
           content: fullAnswer,
           role: "Assistant",
           conversationId: conversationId,
+          sources: sources,
         },
       }),
       prisma.conversation.update({
