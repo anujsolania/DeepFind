@@ -1,6 +1,6 @@
 import express from "express";
 import { tavily } from "@tavily/core";
-import { SYSTEM_PROMPT, getPrompt, getFollowUpPrompt } from "./prompt";
+import { SYSTEM_PROMPT, getPrompt, getFollowUpPrompt, parseFollowUps } from "./prompt";
 import Groq from "groq-sdk";
 import middleware from "./middleware";
 import cors from "cors"
@@ -14,6 +14,7 @@ const app = express();
 
 app.use(express.json());
 app.use(cors());
+
 
 app.get("/conversations",middleware, async (req, res) => {
   try {
@@ -139,12 +140,12 @@ app.post("/purpexility_ask",middleware, async (req, res) => {
 
     const followUpsText = followUps.choices[0]?.message.content;
 
-    let parsed = {
+    let parsed: { follow_ups: string[] } = {
       follow_ups: [],
     };
 
     try {
-      parsed = JSON.parse(followUpsText ?? "");
+      parsed = parseFollowUps(followUpsText ?? "");
     } catch (error) {
       console.log("JSON parsing failed");
     }
@@ -314,12 +315,12 @@ app.post("/purpexility_ask/follow_ups", middleware, async (req, res) => {
     });
 
     const followUpsText = followUps.choices[0]?.message.content;
-    let parsed = {
+    let parsed: { follow_ups: string[] } = {
       follow_ups: [],
     };
 
     try {
-      parsed = JSON.parse(followUpsText ?? "");
+      parsed = parseFollowUps(followUpsText ?? "");
     } catch (error) {
       console.log("JSON parsing failed");
     }
