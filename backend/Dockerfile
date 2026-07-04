@@ -8,8 +8,9 @@ COPY package.json bun.lock ./
 # Install dependencies
 RUN bun install --frozen-lockfile
 
-# Copy prisma directory (contains schema.prisma and migrations)
+# Copy prisma directory and configuration file
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 # Generate Prisma Client (builds the TypeScript types for the database)
 RUN bun --bun prisma generate
