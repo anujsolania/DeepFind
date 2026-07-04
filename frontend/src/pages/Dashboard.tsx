@@ -6,6 +6,7 @@ import { useNavigate } from "react-router";
 import { Sparkles, Plus, History, MessageSquare, LogOut, User as UserIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { API_URL } from "../config";
 
 interface Conversation {
   id: string;
@@ -94,7 +95,7 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await axios.get("http://localhost:3000/conversations", {
+      const response = await axios.get(`${API_URL}/conversations`, {
         headers: {
           Authorization: session.access_token,
         },
@@ -114,7 +115,7 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await axios.get(`http://localhost:3000/conversation/${id}`, {
+      const response = await axios.get(`${API_URL}/conversation/${id}`, {
         headers: {
           Authorization: session.access_token,
         },
@@ -179,8 +180,8 @@ export default function Dashboard() {
 
       // 2. Select endpoint and request body based on whether it is a follow-up
       const endpoint = isFollowUp
-        ? "http://localhost:3000/purpexility_ask/follow_ups"
-        : "http://localhost:3000/purpexility_ask";
+        ? `${API_URL}/purpexility_ask/follow_ups`
+        : `${API_URL}/purpexility_ask`;
 
       const requestBody = isFollowUp
         ? { conversationId: activeConversationId, query: submittedQuery }
