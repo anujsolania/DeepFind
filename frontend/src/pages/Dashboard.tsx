@@ -49,6 +49,18 @@ export default function Dashboard() {
   // Toggle sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Modern custom notification & confirmation state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Auto-dismiss toast after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   // Close sidebar on mobile devices by default
   useEffect(() => {
     if (window.innerWidth < 768) {
@@ -291,17 +303,19 @@ export default function Dashboard() {
   }
 
   // Handle deleting a conversation
-  async function handleDeleteConversation(id: string, e: React.MouseEvent) {
+  function handleDeleteConversation(id: string, e: React.MouseEvent) {
     e.stopPropagation(); // Prevent selecting the chat when clicking delete
     
     if (isStreaming && activeConversationId === id) {
-      alert("Cannot delete a chat while a response is streaming.");
+      setToast({ message: "Cannot delete a chat while streaming", type: "error" });
       return;
     }
 
-    const confirmDelete = window.confirm("Are you sure you want to delete this chat?");
-    if (!confirmDelete) return;
+    setDeleteConfirmId(id);
+  }
 
+  // Confirm and execute deletion
+  async function confirmDeleteConversation(id: string) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -319,9 +333,11 @@ export default function Dashboard() {
       if (activeConversationId === id) {
         handleNewChat();
       }
+
+      setToast({ message: "Chat deleted successfully", type: "success" });
     } catch (error) {
       console.error("Error deleting conversation:", error);
-      alert("Failed to delete the conversation. Please try again.");
+      setToast({ message: "Failed to delete the conversation", type: "error" });
     }
   }
 
@@ -736,6 +752,58 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Modern Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#0e1015] border border-zinc-800/80 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-zinc-100 mb-2">Delete Conversation?</h3>
+            <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
+              This will permanently delete this conversation and all associated messages. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 transition duration-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const id = deleteConfirmId;
+                  setDeleteConfirmId(null);
+                  confirmDeleteConversation(id);
+                }}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/30 transition duration-200 cursor-pointer shadow-md shadow-red-500/10"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-5 duration-300">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-md shadow-lg ${
+            toast.type === "success"
+              ? "bg-[#0d1511]/80 border-emerald-500/30 text-emerald-400"
+              : toast.type === "error"
+              ? "bg-[#180f11]/80 border-red-500/30 text-red-400"
+              : "bg-zinc-900/80 border-zinc-800 text-zinc-300"
+          }`}>
+            <Sparkles className={`w-4 h-4 ${toast.type === "success" ? "text-emerald-400" : "text-zinc-400"}`} />
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 hover:opacity-80 transition cursor-pointer text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
