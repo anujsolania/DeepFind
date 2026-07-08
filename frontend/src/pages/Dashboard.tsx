@@ -3,7 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import axios from "axios";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Sparkles, Plus, History, MessageSquare, LogOut, User as UserIcon } from "lucide-react";
+import { Sparkles, Plus, History, MessageSquare, LogOut, User as UserIcon, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { API_URL } from "../config";
@@ -290,6 +290,41 @@ export default function Dashboard() {
     executeSearch(submittedQuery);
   }
 
+  // Handle deleting a conversation
+  async function handleDeleteConversation(id: string, e: React.MouseEvent) {
+    e.stopPropagation(); // Prevent selecting the chat when clicking delete
+    
+    if (isStreaming && activeConversationId === id) {
+      alert("Cannot delete a chat while a response is streaming.");
+      return;
+    }
+
+    const confirmDelete = window.confirm("Are you sure you want to delete this chat?");
+    if (!confirmDelete) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      await axios.delete(`${API_URL}/conversation/${id}`, {
+        headers: {
+          Authorization: session.access_token,
+        },
+      });
+
+      // Update local state by removing the deleted conversation
+      setConversations((prev) => prev.filter((chat) => chat.id !== id));
+
+      // If the deleted conversation is the active one, reset to new chat
+      if (activeConversationId === id) {
+        handleNewChat();
+      }
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      alert("Failed to delete the conversation. Please try again.");
+    }
+  }
+
   // Handle logging out
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -383,7 +418,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="flex flex-col gap-1 mt-1">
                     {conversations.map((chat) => (
-                      <button
+                      <div
                         key={chat.id}
                         onClick={() => {
                           setActiveConversationId(chat.id);
@@ -391,7 +426,7 @@ export default function Dashboard() {
                             setIsSidebarOpen(false);
                           }
                         }}
-                        className={`w-full text-left py-2 px-3 rounded-xl text-sm transition-all duration-200 cursor-pointer flex items-center gap-2.5 group/chat relative ${
+                        className={`w-full text-left py-2 pl-3 pr-8 rounded-xl text-sm transition-all duration-200 cursor-pointer flex items-center gap-2.5 group/chat relative ${
                           activeConversationId === chat.id
                             ? "bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
                             : "text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200 border border-transparent hover:border-zinc-800/50"
@@ -402,8 +437,16 @@ export default function Dashboard() {
                             ? "text-emerald-400"
                             : "text-zinc-500 group-hover/chat:text-zinc-400"
                         }`} />
-                        <span className="truncate flex-1">{chat.title || "Untitled Chat"}</span>
-                      </button>
+                        <span className="truncate flex-1 select-none">{chat.title || "Untitled Chat"}</span>
+                        
+                        <button
+                          onClick={(e) => handleDeleteConversation(chat.id, e)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/chat:opacity-100 transition-all duration-200 z-10 cursor-pointer"
+                          title="Delete Chat"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}

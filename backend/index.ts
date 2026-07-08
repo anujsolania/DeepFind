@@ -56,6 +56,45 @@ app.get("/conversation/:id", middleware,  async(req,res) => {
   }
 })
 
+app.delete("/conversation/:id", middleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (typeof id !== "string") {
+      res.status(400).json({ error: "Invalid conversation ID" });
+      return;
+    }
+    const userId = (req as any).userId;
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: id }
+    });
+
+    if (!conversation) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+
+    if (conversation.userId !== userId) {
+      res.status(403).json({ error: "Unauthorized access to this conversation" });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.message.deleteMany({
+        where: { conversationId: id }
+      }),
+      prisma.conversation.delete({
+        where: { id: id }
+      })
+    ]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong deleting the conversation" });
+  }
+})
+
 
 app.post("/purpexility_ask",middleware, async (req, res) => {
   try {
