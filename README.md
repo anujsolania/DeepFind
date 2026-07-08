@@ -89,7 +89,7 @@ sequenceDiagram
     Backend->>LLM: Request JSON Completion (Suggest exactly 3 follow-ups)
     LLM-->>Backend: Return JSON (follow_ups array)
     Backend-->>Frontend: Stream SSE (type: FOLLOW_UPS)
-    Backend->>DB: Create Conversation & Save User + Assistant Message
+    Backend->>DB: Create Conversation & Save User + Assistant Message (with cached sources)
     DB-->>Backend: Return persisted Conversation ID
     Backend-->>Frontend: Stream SSE (type: CONVERSATION_ID)
     Backend-->>Frontend: Stream SSE (type: DONE)
@@ -105,8 +105,11 @@ sequenceDiagram
 - **Multi-Turn Conversational Context**: Tracks previous prompts and assistant responses, compounding queries to allow natural follow-up questions that remain contextually aware.
 - **Automated Suggestion Engine**: Utilizes LLMs to generate exactly three contextually relevant follow-up prompts formatted as interactive UI actions.
 - **OAuth Authentication Lifecycle**: Implements Google and GitHub authentication, mapping secure Supabase credentials to internal relational tables.
-- **Recent Chat Sidebar**: Persists and displays historical threads allowing users to swap seamlessly between active and past conversations.
-- **Modern Responsive Design**: Featuring high-end Glassmorphism, ambient blurred gradients, micro-animations, and full dark-theme visual comfort built using Tailwind CSS v4.
+- **Recent Chat Sidebar**: Persists, sorts by recency, and displays historical threads allowing users to swap seamlessly between active and past conversations.
+- **Conversations Management**: Allows users to delete individual conversation threads directly from the sidebar UI.
+- **Persistent Web Sources (Citations)**: Web search sources (`sources`) are stored directly in the database under each Assistant message, rendering them instantly when reloading past conversations.
+- **Markdown and GFM Rendering**: Integrates `react-markdown` and `remark-gfm` to format rich responses (including headers, lists, code, and tables) cleanly.
+- **Modern Responsive Design**: Featuring high-end Glassmorphism, ambient blurred gradients, micro-animations, custom confirmations/toasts, and full dark-theme visual comfort built using Tailwind CSS v4.
 
 ---
 
@@ -115,7 +118,7 @@ sequenceDiagram
 ### Frontend
 - **Framework**: React 19
 - **Routing**: React Router v7
-- **Styling**: Tailwind CSS v4, Lucide React (Icons), Radix UI (Select, Slots, Labels)
+- **Styling & Rendering**: Tailwind CSS v4, Lucide React (Icons), Radix UI (Select, Slots, Labels), React Markdown, Remark GFM
 - **Networking**: Axios, Fetch API (Stream Reader)
 - **Runtime & Bundler**: Bun (`Bun.build` with custom dev pipeline)
 
@@ -140,6 +143,8 @@ Purplexity/
 │   ├── prisma/
 │   │   ├── migrations/         # Database migration logs
 │   │   └── schema.prisma      # Prisma schema (Models: User, Conversation, Message)
+│   ├── Dockerfile             # Backend container configuration for deployment
+│   ├── prisma.config.ts      # Prisma configuration settings
 │   ├── db.ts                  # Instantiates PrismaClient with node-pg adapter
 │   ├── index.ts               # Express application server and LLM route configurations
 │   ├── middleware.ts          # Supabase Token Verifier & User Synchronization Hook
@@ -164,6 +169,7 @@ Purplexity/
 │   │   └── index.html         # HTML Document template
 │   ├── styles/
 │   │   └── globals.css        # Custom dark mode styles and scrollbars
+│   ├── vercel.json            # Vercel configuration for SPA routing fallback
 │   ├── build.ts               # Production asset builder using Bun compiler
 │   └── package.json           # Frontend dependencies and scripts
 └── README.md                  # This file
@@ -191,6 +197,7 @@ model Conversation {
   userId    String
   user      User      @relation(fields: [userId], references: [id])
   followUps String[]  @default([])
+  updatedAt DateTime  @default(now()) @updatedAt
 }
 
 model Message {
@@ -200,12 +207,23 @@ model Message {
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   createdAt      DateTime     @default(now())
+  sources        Json?        @default("[]")
+}
+
+enum MessageRole {
+  User
+  Assistant
+}
+
+enum AuthProvider {
+  github
+  google
 }
 ```
 
 - **User** tracks the authenticated provider session.
-- **Conversation** acts as the parent thread holding the title and cached suggestions array.
-- **Message** keeps sequential records of prompts and responses with timestamps.
+- **Conversation** acts as the parent thread holding the title, cached suggestions array, and recency sorting timestamp (`updatedAt`).
+- **Message** keeps sequential records of prompts and responses with timestamps and cached search citations (`sources`).
 
 ---
 
@@ -287,14 +305,19 @@ All stateful endpoints require a valid JWT token sent within the `Authorization`
 ### 1. Fetch Conversations
 - **Endpoint**: `GET /conversations`
 - **Headers**: `Authorization: <SUPABASE_JWT_TOKEN>`
-- **Response**: List of all conversations belonging to the authenticated user.
+- **Response**: List of all conversations belonging to the authenticated user, sorted by `updatedAt` in descending order.
 
 ### 2. Fetch Conversation Details
 - **Endpoint**: `GET /conversation/:id`
 - **Headers**: `Authorization: <SUPABASE_JWT_TOKEN>`
-- **Response**: Details of a conversation, including all its messages.
+- **Response**: Details of a conversation, including all its messages and persisted search sources.
 
-### 3. Synthesize New Query (SSE)
+### 3. Delete Conversation
+- **Endpoint**: `DELETE /conversation/:id`
+- **Headers**: `Authorization: <SUPABASE_JWT_TOKEN>`
+- **Response**: `{ "success": true }` on successful deletion of the conversation and all associated messages.
+
+### 4. Synthesize New Query (SSE)
 - **Endpoint**: `POST /purpexility_ask`
 - **Headers**: `Authorization: <SUPABASE_JWT_TOKEN>`
 - **Body**: `{ "query": "Your search query string" }`
@@ -305,7 +328,7 @@ All stateful endpoints require a valid JWT token sent within the `Authorization`
   - `type: CONVERSATION_ID`: Returns the ID of the newly generated database conversation thread.
   - `type: DONE`: Signals stream closing.
 
-### 4. Synthesize Follow-Up Query (SSE)
+### 5. Synthesize Follow-Up Query (SSE)
 - **Endpoint**: `POST /purpexility_ask/follow_ups`
 - **Headers**: `Authorization: <SUPABASE_JWT_TOKEN>`
 - **Body**: `{ "conversationId": "cuid", "query": "The follow up prompt" }`
@@ -330,16 +353,14 @@ Supabase OAuth Login (Client) ──> Client retrieves JWT Token
 * **Double LLM Pass Design**: 
   - *First Pass (Streaming)*: Combines the raw search results JSON with the user's prompt to generate a detailed, structured response immediately.
   - *Second Pass (Non-Streaming)*: Executes asynchronously to generate exactly 3 contextual follow-up questions formatted as an array.
-* **Saving States**: Saving to the database happens inside a transaction AFTER the streaming completes. This prevents saving database records for failed requests or aborted client streams.
+* **Saving States**: Saving to the database happens inside a transaction AFTER the streaming completes. This prevents saving database records for failed requests or aborted client streams, saving both user prompt, assistant response, and scraped web sources in one atomic transaction.
 
 ---
 
 ## Future Roadmap
 
-1. **Markdown and Citations Rendering**: Add `react-markdown` to parse formatted mathematical expressions, tables, and lists in generated output, and create hoverable annotations linking directly to the list of source references.
-2. **Persistent Web Sources**: Add a relation schema in PostgreSQL to store the scraped web search results, so past conversations load their references immediately.
-3. **Conversations Management**: Add endpoints to delete chat threads and rename session titles.
-4. **Offline Mode / Multi-Model Support**: Add options in the frontend UI to select different Groq inference engines (e.g. LLaMA, Mixtral) dynamically.
+1. **Offline Mode / Multi-Model Support**: Add options in the frontend UI to select different Groq inference engines (e.g. LLaMA, Mixtral) dynamically.
+2. **Chat Renaming**: Add options to edit or rename existing conversation session titles.
 
 ---
 
